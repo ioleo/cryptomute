@@ -17,7 +17,7 @@ use LogicException;
  */
 class Cryptomute
 {
-    const VERSION = '1.0.0';
+    const VERSION = '1.0.2';
 
     const PASSWORD_MIN_LENGTH = 16;
 
@@ -74,8 +74,44 @@ class Cryptomute
     protected $iv;
 
     /**
+     * @var int
+     */
+    protected $rounds;
+
+    /**
+     * @var int
+     */
+    protected $cipherLength;
+
+    /**
+     * @var int
+     */
+    protected $blockSize;
+
+    /**
+     * @var int
+     */
+    protected $bitSize;
+
+    /**
+     * @var int
+     */
+    protected $decSize;
+
+    /**
+     * @var int
+     */
+    protected $hexSize;
+
+    /**
+     * @var int
+     */
+    protected $sideSize;
+
+    /**
      * Cryptomute constructor.
      *
+     * @param string $minValue Minimum value. String representation of positive integer value or zero.
      * @param string $maxValue Maximum value. String representation of positive integer value.
      * @param string $cipher   Cipher used to encrypt.
      * @param string $password Encryption password.
@@ -86,36 +122,40 @@ class Cryptomute
      * @throws InvalidArgumentException If provided invalid constructor parameters.
      * @throws LogicException           If side size is longer than cipher length.
      */
-    public function __construct($maxValue, $cipher, $password, $key, $rounds = 3, $iv = '')
+    public function __construct($minValue, $maxValue, $cipher, $password, $key, $rounds = 3, $iv = '')
     {
+        if (preg_match('/^([1-9][0-9]*)|([0]{1})$/', $minValue) !== 1) {
+            throw new InvalidArgumentException(
+                'Min value must contain only digits.'
+            );
+        }
+
         if (preg_match('/^[1-9][0-9]*$/', $maxValue) !== 1) {
             throw new InvalidArgumentException(
                 'Max value must start with a nonzero digit and contain only digits.'
             );
         }
 
-        if (gmp_cmp(self::MIN_POOL_SIZE, $maxValue) == 1) {
-            throw new InvalidArgumentException(sprintf(
-                'Max value must be greater or equal "%s"',
-                self::MIN_POOL_SIZE
-            ));
+        if (gmp_cmp($maxValue, $minValue) !== 1) {
+            throw new InvalidArgumentException('Max value must be greater than min value.');
         }
 
+        $this->minValue = $minValue;
         $this->maxValue = $maxValue;
-        $this->bitSize = 2;
+        $this->binSize = 2;
 
         // find the minimum number of even bits to span whole set
         $span = gmp_init('4', 10);
         $multiplier = gmp_init('4', 10);
         do {
-            $this->bitSize +=2;
+            $this->binSize += 2;
             $span = gmp_mul ($span, $multiplier);
         } while (gmp_cmp($span, $this->maxValue) !== 1);
 
         $this->decSize = strlen($this->maxValue);
-        $this->hexSize = $this->bitSize/4;
+        $this->hexSize = $this->binSize / 4;
 
-        $this->sideSize = (int) $this->bitSize/2;
+        $this->sideSize = (int) $this->binSize / 2;
 
         if (!array_key_exists($cipher, $this->allowedCiphers)) {
             throw new InvalidArgumentException(sprintf(
@@ -256,13 +296,13 @@ class Cryptomute
 
         switch ($type) {
             case 'bin':
-                $binary = DataConverter::pad($input, $this->bitSize);
+                $binary = DataConverter::pad($input, $this->binSize);
                 break;
             case 'dec':
-                $binary = DataConverter::decToBin($input, $this->bitSize);
+                $binary = DataConverter::decToBin($input, $this->binSize);
                 break;
             case 'hex':
-                $binary = DataConverter::hexToBin($input, $this->bitSize);
+                $binary = DataConverter::hexToBin($input, $this->binSize);
                 break;
         }
 
@@ -276,12 +316,12 @@ class Cryptomute
             $newLeft = $right;
             $newRight = $this->_binaryXor($left, $round);
 
-            $binary = $newLeft.$newRight;
+            $binary = $newLeft . $newRight;
         }
 
         switch ($type) {
             case 'bin':
-                $output = DataConverter::pad($binary, ($pad ? $this->bitSize : 0));
+                $output = DataConverter::pad($binary, ($pad ? $this->binSize : 0));
                 break;
             case 'dec':
                 $output = DataConverter::binToDec($binary, ($pad ? $this->decSize : 0));
@@ -293,7 +333,7 @@ class Cryptomute
 
         $compare = DataConverter::binToDec($binary);
 
-        return gmp_cmp($compare, $this->maxValue) === 1
+        return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
             ? $this->encrypt($output, $type, $pad)
             : $output;
     }
@@ -329,13 +369,13 @@ class Cryptomute
 
         switch ($type) {
             case 'bin':
-                $binary = DataConverter::pad($input, $this->bitSize);
+                $binary = DataConverter::pad($input, $this->binSize);
                 break;
             case 'dec':
-                $binary = DataConverter::decToBin($input, $this->bitSize);
+                $binary = DataConverter::decToBin($input, $this->binSize);
                 break;
             case 'hex':
-                $binary = DataConverter::hexToBin($input, $this->bitSize);
+                $binary = DataConverter::hexToBin($input, $this->binSize);
                 break;
         }
 
@@ -349,12 +389,12 @@ class Cryptomute
             $newLeft = $this->_binaryXor($right, $round);
             $newRight = $left;
 
-            $binary = $newLeft.$newRight;
+            $binary = $newLeft . $newRight;
         }
 
         switch ($type) {
             case 'bin':
-                $output = DataConverter::pad($binary, ($pad ? $this->bitSize : 0));
+                $output = DataConverter::pad($binary, ($pad ? $this->binSize : 0));
                 break;
             case 'dec':
                 $output = DataConverter::binToDec($binary, ($pad ? $this->decSize : 0));
@@ -366,7 +406,7 @@ class Cryptomute
 
         $compare = DataConverter::binToDec($binary);
 
-        return gmp_cmp($compare, $this->maxValue) === 1
+        return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
             ? $this->decrypt($output, $type, $pad)
             : $output;
     }
@@ -395,16 +435,16 @@ class Cryptomute
      */
     private function _round($input, $key)
     {
-        $bin = DataConverter::rawToBin($this->_encrypt($input.$key));
+        $bin = DataConverter::rawToBin($this->_encrypt($input . $key));
 
         return substr($bin, -1 * $this->sideSize);
     }
 
     /**
-     * Round function helper.
+     * Binary xor helper.
      *
      * @param string $left
-     * @param string $key
+     * @param string $round
      *
      * @return string Binary string.
      */
