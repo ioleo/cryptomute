@@ -46,6 +46,11 @@ class Cryptomute
     /**
      * @var string
      */
+    protected $minValue;
+
+    /**
+     * @var string
+     */
     protected $maxValue;
 
     /**
@@ -91,7 +96,7 @@ class Cryptomute
     /**
      * @var int
      */
-    protected $bitSize;
+    protected $binSize;
 
     /**
      * @var int
