@@ -135,23 +135,6 @@ class Cryptomute
             ));
         }
 
-        if (strlen($password) < self::PASSWORD_MIN_LENGTH) {
-            throw new InvalidArgumentException(sprintf(
-                'Password must be at least %d characters long.',
-                self::PASSWORD_MIN_LENGTH
-            ));
-        }
-
-        $this->password = $password;
-
-        if (strlen($key) < self::KEY_MIN_LENGTH) {
-            throw new InvalidArgumentException(sprintf(
-                'Key must be at least %d characters long.',
-                self::KEY_MIN_LENGTH
-            ));
-        }
-
-        $this->key = $key;
 
         if (!is_int($rounds) || $rounds < self::MIN_ROUNDS) {
             throw new InvalidArgumentException(sprintf(
@@ -176,7 +159,64 @@ class Cryptomute
             $this->iv = $iv;
         }
 
-        // generate round keys
+        $this->setPassword($password, false);
+        $this->setKey($key, false);
+        $this->generateRoundKeys();
+    }
+
+    /**
+     * Set password.
+     *
+     * @param string $password
+     * @param bool   $regenerateRoundKeys
+     *
+     * @throws InvalidArgumentException If provided invalid password.
+     */
+    public function setPassword($password, $regenerateRoundKeys = true)
+    {
+        if (strlen($password) < self::PASSWORD_MIN_LENGTH) {
+            throw new InvalidArgumentException(sprintf(
+                'Password must be at least %d characters long.',
+                self::PASSWORD_MIN_LENGTH
+            ));
+        }
+
+        $this->password = $password;
+
+        if ($regenerateRoundKeys) {
+            $this->generateRoundKeys();
+        }
+    }
+
+    /**
+     * Set key.
+     *
+     * @param string $key
+     * @param bool   $regenerateRoundKeys
+     *
+     * @throws InvalidArgumentException If provided invalid password.
+     */
+    public function setKey($key, $regenerateRoundKeys = true)
+    {
+        if (strlen($key) < self::KEY_MIN_LENGTH) {
+            throw new InvalidArgumentException(sprintf(
+                'Key must be at least %d characters long.',
+                self::KEY_MIN_LENGTH
+            ));
+        }
+
+        $this->key = $key;
+
+        if ($regenerateRoundKeys) {
+            $this->generateRoundKeys();
+        }
+    }
+
+    /**
+     * Generates round keys.
+     */
+    public function generateRoundKeys()
+    {
         $this->roundKeys = [];
         $prevKey = $this->_encrypt($this->key);
         for ($i = 1; $i <= $this->rounds; $i++) {
