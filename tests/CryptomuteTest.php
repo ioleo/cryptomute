@@ -20,6 +20,7 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
 
     public function setUp()
     {
+        $this->minValue = '0';
         $this->maxValue = '9999999999';
         $cipher = 'aes-128-cbc';
         $password = openssl_random_pseudo_bytes(32);
@@ -27,12 +28,13 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
         $rounds = 7;
         $iv = openssl_random_pseudo_bytes(16);
 
-        $this->cryptomute = new Cryptomute($this->maxValue, $cipher, $password, $key, $rounds, $iv);
+        $this->cryptomute = new Cryptomute($this->minValue, $this->maxValue, $cipher, $password, $key, $rounds, $iv);
     }
 
     public function testReadmeExample()
     {
         $cryptomute = new Cryptomute(
+            '0',                // minimum value
             '999999999',        // maximum value
             'aes-128-cbc',      // cipher
             '0123456789qwerty', // password
@@ -50,9 +52,12 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
 
     public function testEncodedValuesAreInDomain()
     {
-        $domain = '999';
+        $minVal = 100;
+        $maxVal = 999;
+
         $cryptomute = new Cryptomute(
-            $domain,            // maximum value
+            (string) $minVal,   // minimum value
+            (string) $maxVal,   // maximum value
             'aes-128-cbc',      // cipher
             '0123456789qwerty', // password
             '0123456789zxcvbn', // key
@@ -60,13 +65,17 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
             '0123456789abcdef'  // initialization vector
         );
 
-        $message = 'Value %s encoded to %s is still in domain %s.';
+        $message = 'Value %s encoded to %s is still in domain %s - %s.';
 
-        for ($i = 0; $i <= 999; $i++) {
+        for ($i = $minVal; $i <= $maxVal; $i++) {
             $plainValue = "$i";
             $encoded = $cryptomute->encrypt($plainValue, 'dec');
+            $intVal = intval($encoded);
 
-            $this->assertFalse(intval($encoded) > 999, sprintf($message, $plainValue, $encoded, $domain));
+            $this->assertTrue(
+                $minVal <= $intVal && $intVal <= $maxVal,
+                sprintf($message, $plainValue, $encoded, $minVal, $maxVal)
+            );
         }
     }
 
@@ -74,7 +83,7 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
     {
         for ($i = 0; $i < 10; $i++) {
             $input = gmp_strval(gmp_random_range(
-                gmp_init('0', 10),
+                gmp_init($this->minValue, 10),
                 gmp_init($this->maxValue, 10)
             ), 2);
 
@@ -92,7 +101,7 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
     {
         for ($i = 0; $i < 10; $i++) {
             $input = gmp_strval(gmp_random_range(
-                gmp_init('0', 10),
+                gmp_init($this->minValue, 10),
                 gmp_init($this->maxValue, 10)
             ), 10);
 
@@ -110,7 +119,7 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
     {
         for ($i = 0; $i < 10; $i++) {
             $input = gmp_strval(gmp_random_range(
-                gmp_init('0', 10),
+                gmp_init($this->minValue, 10),
                 gmp_init($this->maxValue, 10)
             ), 16);
 

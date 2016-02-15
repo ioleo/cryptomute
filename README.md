@@ -24,6 +24,7 @@ require_once 'vendor/autoload.php';
 use Cryptomute\Cryptomute;
 
 $cryptomute = new Cryptomute(
+    '0',                // minimum value
     '999999999',        // maximum value
     'aes-128-cbc',      // cipher
     '0123456789qwerty', // password
@@ -56,6 +57,7 @@ array(3) {
 	
 ## Constructor arguments
 
+* `minValue` string representation of minimum value, eg.for domain 0-9999 (4 digit integers) we set it to `0`
 * `maxValue` string representation of maximum value, eg.for domain 0-9999 (4 digit integers) we set it to `9999`
 * `cipher` the first version supports only `aes-128-cbc`, soon other openssl cipher methods will be added
 * `password` password used for encryption
