@@ -24,8 +24,6 @@ require_once 'vendor/autoload.php';
 use Cryptomute\Cryptomute;
 
 $cryptomute = new Cryptomute(
-    '0',                // minimum value
-    '999999999',        // maximum value
     'aes-128-cbc',      // cipher
     '0123456789zxcvbn', // base key
     7,                  // number of rounds
@@ -58,11 +56,15 @@ array(3) {
 	
 ## Constructor arguments
 
-* `minValue` string representation of minimum value, eg.for domain 0-9999 (4 digit integers) we set it to `0`
-* `maxValue` string representation of maximum value, eg.for domain 0-9999 (4 digit integers) we set it to `9999`
 * `cipher` the first version supports only `aes-128-cbc`, soon other openssl cipher methods will be added
 * `key` base key from which round keys are derrived
 * `rounds` number of rounds used, minimum - 3, recommended for stronger security - 7
+
+## Public methods
+
+* `setValueRange($minValue, $maxValue)` sets minimum and maximum value
+* `encrypt($plainValue, $base, $pad, $password, $iv)` encrypts data
+* `decrypt($cryptValue, $base, $pad, $password, $iv)` decrypts data
 
 ## License
 

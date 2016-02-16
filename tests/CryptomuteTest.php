@@ -170,12 +170,15 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
      */
     private function getCryptomute($rounds, $minVal = null, $maxVal = null)
     {
-        return new Cryptomute(
-            $minVal ?: self::MIN_VALUE,
-            $maxVal ?: self::MAX_VALUE,
+        $cryptomute = new Cryptomute(
             self::CIPHER,
             openssl_random_pseudo_bytes(32),
             $rounds
+        );
+
+        return $cryptomute->setValueRange(
+            $minVal ?: self::MIN_VALUE,
+            $maxVal ?: self::MAX_VALUE
         );
     }
 }
