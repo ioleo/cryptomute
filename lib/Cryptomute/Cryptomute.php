@@ -17,9 +17,7 @@ use LogicException;
  */
 class Cryptomute
 {
-    const VERSION = '1.0.2';
-
-    const PASSWORD_MIN_LENGTH = 16;
+    const VERSION = '1.0.0';
 
     const KEY_MIN_LENGTH = 16;
 
@@ -30,17 +28,17 @@ class Cryptomute
     /**
      * @var array
      */
-    protected $allowedCiphers = [
+    public static $allowedCiphers = [
         'aes-128-cbc' => ['iv' => true, 'length' => 128],
     ];
 
     /**
      * @var array
      */
-    protected $allowedDataTypes = [
-        'bin' => '/^[0-1]+$/',
-        'dec' => '/^[0-9]+$/',
-        'hex' => '/^[a-f0-9]+$/',
+    public static $allowedBases = [
+        2  => '/^[0-1]+$/',
+        10 => '/^[0-9]+$/',
+        16 => '/^[a-f0-9]+$/',
     ];
 
     /**
@@ -119,15 +117,13 @@ class Cryptomute
      * @param string $minValue Minimum value. String representation of positive integer value or zero.
      * @param string $maxValue Maximum value. String representation of positive integer value.
      * @param string $cipher   Cipher used to encrypt.
-     * @param string $password Encryption password.
      * @param string $key      Initial key, from which all round keys are derrived.
      * @param int    $rounds   Number of rounds.
-     * @param string $iv       Initialization vector, required only if applies to given cipher.
      *
      * @throws InvalidArgumentException If provided invalid constructor parameters.
      * @throws LogicException           If side size is longer than cipher length.
      */
-    public function __construct($minValue, $maxValue, $cipher, $password, $key, $rounds = 3, $iv = '')
+    public function __construct($minValue, $maxValue, $cipher, $key, $rounds = 3, $password = null)
     {
         if (preg_match('/^([1-9][0-9]*)|([0]{1})$/', $minValue) !== 1) {
             throw new InvalidArgumentException(
@@ -162,15 +158,15 @@ class Cryptomute
 
         $this->sideSize = (int) $this->binSize / 2;
 
-        if (!array_key_exists($cipher, $this->allowedCiphers)) {
+        if (!array_key_exists($cipher, self::$allowedCiphers)) {
             throw new InvalidArgumentException(sprintf(
                 'Cipher must be one of "%s".',
-                implode(', ', array_keys($this->allowedCiphers))
+                implode(', ', array_keys(self::$allowedCiphers))
             ));
         }
 
         $this->cipher = $cipher;
-        $this->cipherLength = $this->allowedCiphers[$cipher]['length'];
+        $this->cipherLength = self::$allowedCiphers[$cipher]['length'];
 
         if ($this->sideSize > $this->cipherLength) {
             throw new LogicException(sprintf(
@@ -190,59 +186,6 @@ class Cryptomute
 
         $this->rounds = $rounds;
 
-        if ($this->allowedCiphers[$cipher]['iv']) {
-            $this->blockSize = openssl_cipher_iv_length($this->cipher);
-
-            if (strlen($iv) !== $this->blockSize) {
-                throw new InvalidArgumentException(sprintf(
-                    'Initialization vector of %d bytes is required for cipher "%s".',
-                    $this->blockSize,
-                    $this->cipher
-                ));
-            }
-
-            $this->iv = $iv;
-        }
-
-        $this->setPassword($password, false);
-        $this->setKey($key, false);
-        $this->generateRoundKeys();
-    }
-
-    /**
-     * Set password.
-     *
-     * @param string $password
-     * @param bool   $regenerateRoundKeys
-     *
-     * @throws InvalidArgumentException If provided invalid password.
-     */
-    public function setPassword($password, $regenerateRoundKeys = true)
-    {
-        if (strlen($password) < self::PASSWORD_MIN_LENGTH) {
-            throw new InvalidArgumentException(sprintf(
-                'Password must be at least %d characters long.',
-                self::PASSWORD_MIN_LENGTH
-            ));
-        }
-
-        $this->password = $password;
-
-        if ($regenerateRoundKeys) {
-            $this->generateRoundKeys();
-        }
-    }
-
-    /**
-     * Set key.
-     *
-     * @param string $key
-     * @param bool   $regenerateRoundKeys
-     *
-     * @throws InvalidArgumentException If provided invalid password.
-     */
-    public function setKey($key, $regenerateRoundKeys = true)
-    {
         if (strlen($key) < self::KEY_MIN_LENGTH) {
             throw new InvalidArgumentException(sprintf(
                 'Key must be at least %d characters long.',
@@ -251,72 +194,34 @@ class Cryptomute
         }
 
         $this->key = $key;
-
-        if ($regenerateRoundKeys) {
-            $this->generateRoundKeys();
-        }
-    }
-
-    /**
-     * Generates round keys.
-     */
-    public function generateRoundKeys()
-    {
-        $this->roundKeys = [];
-        $prevKey = $this->_encrypt($this->key);
-        for ($i = 1; $i <= $this->rounds; $i++) {
-            $prevKey = $this->_encrypt($prevKey);
-            $this->roundKeys[$i] = substr(DataConverter::rawToBin($prevKey), -1 * $this->sideSize);
-        }
     }
 
     /**
      * Encrypts input data.
      *
-     * @param string $input String representation of input number.
-     * @param string $type  Input number type.
-     * @param bool   $pad
-     *
-     * @throws InvalidArgumentException If provided invalid type.
-     * @throws InvalidArgumentException If provided data does not match type pattern.
+     * @param string      $input    String representation of input number.
+     * @param int         $base     Input number base.
+     * @param bool        $pad      Pad left with zeroes?
+     * @param string|null $password Encryption password.
+     * @param string|null $iv       Encryption initialization vector. Must be unique!
      *
      * @return string Outputs encrypted data in the same format as input data.
      */
-    public function encrypt($input, $type = 'dec', $pad = false)
+    public function encrypt($input, $base = 10, $pad = false, $password = null, $iv = null)
     {
-        if (!array_key_exists($type, $this->allowedDataTypes)) {
-            throw new InvalidArgumentException(sprintf(
-                'Type must be one of "%s", but given "%s".',
-                implode(', ', array_keys($this->allowedDataTypes)),
-                $type
-            ));
-        }
+        $this->_validateInput($input, $base);
+        $this->_validateIv($iv);
+        $hashPassword = $this->_hashPassword($password);
+        $roundKeys = $this->_roundKeys($hashPassword, $iv);
 
-        if (preg_match($this->allowedDataTypes[$type], $input) !== 1) {
-            throw new InvalidArgumentException(sprintf(
-                'Input data does not match pattern "%s".',
-                $this->allowedDataTypes[$type]
-            ));
-        }
-
-        switch ($type) {
-            case 'bin':
-                $binary = DataConverter::pad($input, $this->binSize);
-                break;
-            case 'dec':
-                $binary = DataConverter::decToBin($input, $this->binSize);
-                break;
-            case 'hex':
-                $binary = DataConverter::hexToBin($input, $this->binSize);
-                break;
-        }
+        $binary = $this->_convertToBin($input, $base);
 
         for ($i = 1; $i <= $this->rounds; $i++) {
             $left = substr($binary, 0, $this->sideSize);
             $right = substr($binary, -1 * $this->sideSize);
 
-            $key = $this->roundKeys[$i];
-            $round = $this->_round($right, $key);
+            $key = $roundKeys[$i];
+            $round = $this->_round($right, $key, $hashPassword, $iv);
 
             $newLeft = $right;
             $newRight = $this->_binaryXor($left, $round);
@@ -324,72 +229,40 @@ class Cryptomute
             $binary = $newLeft . $newRight;
         }
 
-        switch ($type) {
-            case 'bin':
-                $output = DataConverter::pad($binary, ($pad ? $this->binSize : 0));
-                break;
-            case 'dec':
-                $output = DataConverter::binToDec($binary, ($pad ? $this->decSize : 0));
-                break;
-            case 'hex':
-                $output = DataConverter::binToHex($binary, ($pad ? $this->hexSize : 0));
-                break;
-        }
-
+        $output = $this->_convertFromBin($binary, $base, $pad);
         $compare = DataConverter::binToDec($binary);
 
         return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
-            ? $this->encrypt($output, $type, $pad)
+            ? $this->encrypt($output, $base, $pad, $password, $iv)
             : $output;
     }
 
     /**
      * Decrypts input data.
      *
-     * @param string $input
-     * @param string $type
-     * @param bool   $pad
-     *
-     * @throws InvalidArgumentException If provided invalid type.
-     * @throws InvalidArgumentException If provided data does not match type pattern.
+     * @param string      $input    Encrypted input.
+     * @param int         $base     Input data base.
+     * @param bool        $pad      Pad left with zeroes?
+     * @param string|null $password Decryption password.
+     * @param string|null $iv       Decryption initialization vector.
      *
      * @return string Outputs encrypted data in the same format as input data.
      */
-    public function decrypt($input, $type = 'dec', $pad = false)
+    public function decrypt($input, $base = 10, $pad = false, $password = null, $iv = null)
     {
-        if (!array_key_exists($type, $this->allowedDataTypes)) {
-            throw new InvalidArgumentException(sprintf(
-                'Type must be one of "%s".',
-                implode(', ', array_keys($this->allowedDataTypes))
-            ));
-        }
+        $this->_validateInput($input, $base);
+        $this->_validateIv($iv);
+        $hashPassword = $this->_hashPassword($password);
+        $roundKeys = $this->_roundKeys($hashPassword, $iv);
 
-        if (preg_match($this->allowedDataTypes[$type], $input) !== 1) {
-            echo "\n\n ARGH: $input \n\n";
-            throw new InvalidArgumentException(sprintf(
-                'Input data does not match pattern "%s".',
-                $this->allowedDataTypes[$type]
-            ));
-        }
-
-        switch ($type) {
-            case 'bin':
-                $binary = DataConverter::pad($input, $this->binSize);
-                break;
-            case 'dec':
-                $binary = DataConverter::decToBin($input, $this->binSize);
-                break;
-            case 'hex':
-                $binary = DataConverter::hexToBin($input, $this->binSize);
-                break;
-        }
+        $binary = $this->_convertToBin($input, $base);
 
         for ($i = $this->rounds; $i > 0; $i--) {
             $left = substr($binary, 0, $this->sideSize);
             $right = substr($binary, -1 * $this->sideSize);
 
-            $key = $this->roundKeys[$i];
-            $round = $this->_round($left, $key);
+            $key = $roundKeys[$i];
+            $round = $this->_round($left, $key, $hashPassword, $iv);
 
             $newLeft = $this->_binaryXor($right, $round);
             $newRight = $left;
@@ -397,50 +270,43 @@ class Cryptomute
             $binary = $newLeft . $newRight;
         }
 
-        switch ($type) {
-            case 'bin':
-                $output = DataConverter::pad($binary, ($pad ? $this->binSize : 0));
-                break;
-            case 'dec':
-                $output = DataConverter::binToDec($binary, ($pad ? $this->decSize : 0));
-                break;
-            case 'hex':
-                $output = DataConverter::binToHex($binary, ($pad ? $this->hexSize : 0));
-                break;
-        }
-
+        $output = $this->_convertFromBin($binary, $base, $pad);
         $compare = DataConverter::binToDec($binary);
 
         return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
-            ? $this->decrypt($output, $type, $pad)
+            ? $this->decrypt($output, $base, $pad, $password, $iv)
             : $output;
     }
 
     /**
      * Encrypt helper.
      *
-     * @param string $input
+     * @param string      $input
+     * @param string      $password
+     * @param string|null $iv
      *
      * @return string Steam of encrypted bytes.
      */
-    private function _encrypt($input)
+    private function _encrypt($input, $password, $iv = null)
     {
-        return ($this->allowedCiphers[$this->cipher]['iv'])
-            ? openssl_encrypt($input, $this->cipher, $this->password, true, $this->iv)
-            : openssl_encrypt($input, $this->cipher, $this->password, true);
+        return (self::$allowedCiphers[$this->cipher]['iv'])
+            ? openssl_encrypt($input, $this->cipher, $password, true, $iv)
+            : openssl_encrypt($input, $this->cipher, $password, true);
     }
 
     /**
      * Round function helper.
      *
-     * @param string $input
-     * @param string $key
+     * @param string      $input
+     * @param string      $key
+     * @param string      $hashPassword
+     * @param string|null $iv
      *
      * @return string Binary string.
      */
-    private function _round($input, $key)
+    private function _round($input, $key, $hashPassword, $iv = null)
     {
-        $bin = DataConverter::rawToBin($this->_encrypt($input . $key));
+        $bin = DataConverter::rawToBin($this->_encrypt($input . $key, $hashPassword, $iv));
 
         return substr($bin, -1 * $this->sideSize);
     }
@@ -463,5 +329,129 @@ class Cryptomute
         $bin = gmp_strval($xOr, 2);
 
         return str_pad($bin, $this->sideSize, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Helper method converting input data to binary string.
+     *
+     * @param string $input
+     * @param string $base
+     *
+     * @return string
+     */
+    private function _convertToBin($input, $base)
+    {
+        switch ($base) {
+            case 2:
+                return DataConverter::pad($input, $this->binSize);
+            case 10:
+                return DataConverter::decToBin($input, $this->binSize);
+            case 16:
+                return DataConverter::hexToBin($input, $this->binSize);
+        }
+    }
+
+    /**
+     * Helper method converting input data from binary string.
+     *
+     * @param string $binary
+     * @param string $type
+     * @param string $pad
+     *
+     * @return string
+     */
+    private function _convertFromBin($binary, $base, $pad)
+    {
+        switch ($base) {
+            case 2:
+                return DataConverter::pad($binary, ($pad ? $this->binSize : 0));
+            case 10:
+                return DataConverter::binToDec($binary, ($pad ? $this->decSize : 0));
+            case 16:
+                return DataConverter::binToHex($binary, ($pad ? $this->hexSize : 0));
+        }
+    }
+
+    /**
+     * Validates input data.
+     *
+     * @param string $input
+     * @param string $base
+     *
+     * @throws InvalidArgumentException If provided invalid type.
+     */
+    private function _validateInput($input, $base)
+    {
+        if (!array_key_exists($base, self::$allowedBases)) {
+            throw new InvalidArgumentException(sprintf(
+                'Type must be one of "%s".',
+                implode(', ', array_keys(self::$allowedBases))
+            ));
+        }
+
+        if (preg_match(self::$allowedBases[$base], $input) !== 1) {
+            throw new InvalidArgumentException(sprintf(
+                'Input data does not match pattern "%s".',
+                self::$allowedBases[$base]
+            ));
+        }
+    }
+
+    /**
+     * Validates initialization vector.
+     *
+     * @param string|null $iv
+     */
+    private function _validateIv($iv = null)
+    {
+        if (self::$allowedCiphers[$this->cipher]['iv']) {
+            $this->blockSize = openssl_cipher_iv_length($this->cipher);
+
+            $ivLength = mb_strlen($iv, '8bit');
+            if ($ivLength !== $this->blockSize) {
+                throw new InvalidArgumentException(sprintf(
+                    'Initialization vector of %d bytes is required for cipher "%s", %d given.',
+                    $this->blockSize,
+                    $this->cipher,
+                    $ivLength
+                ));
+            }
+        }
+    }
+
+    /**
+     * Hashes the password.
+     *
+     * @param string|null $password
+     *
+     * @return string
+     */
+    private function _hashPassword($password = null)
+    {
+        if (null !== $password) {
+            $this->password = md5($password);
+        }
+
+        return $this->password;
+    }
+
+    /**
+     * Generates hash keys.
+     *
+     * @param string|null $hashPassword
+     * @param string|null $iv
+     *
+     * @return array
+     */
+    private function _roundKeys($hashPassword = null, $iv = null)
+    {
+        $roundKeys = [];
+        $prevKey = $this->_encrypt($this->key, $hashPassword, $iv);
+        for ($i = 1; $i <= $this->rounds; $i++) {
+            $prevKey = $this->_encrypt($prevKey, $hashPassword, $iv);
+            $roundKeys[$i] = substr(DataConverter::rawToBin($prevKey), -1 * $this->sideSize);
+        }
+
+        return $roundKeys;
     }
 }

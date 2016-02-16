@@ -27,15 +27,16 @@ $cryptomute = new Cryptomute(
     '0',                // minimum value
     '999999999',        // maximum value
     'aes-128-cbc',      // cipher
-    '0123456789qwerty', // password
-    '0123456789zxcvbn', // key
+    '0123456789zxcvbn', // base key
     7,                  // number of rounds
-    '0123456789abcdef'  // initialization vector
 );
 
+$password = '0123456789qwerty';
+$iv = '0123456789abcdef';
+
 $plainValue = '2048';
-$encoded = $cryptomute->encrypt($plainValue, 'dec');
-$decoded = $cryptomute->decrypt($encoded, 'dec');
+$encoded = $cryptomute->encrypt($plainValue, 10, false, $password, $iv);
+$decoded = $cryptomute->decrypt($encoded, 10, false, $password, $iv);
 
 var_dump([
   'plainValue' => $plainValue,
@@ -60,10 +61,8 @@ array(3) {
 * `minValue` string representation of minimum value, eg.for domain 0-9999 (4 digit integers) we set it to `0`
 * `maxValue` string representation of maximum value, eg.for domain 0-9999 (4 digit integers) we set it to `9999`
 * `cipher` the first version supports only `aes-128-cbc`, soon other openssl cipher methods will be added
-* `password` password used for encryption
 * `key` base key from which round keys are derrived
 * `rounds` number of rounds used, minimum - 3, recommended for stronger security - 7
-* `iv` (optional) initialization vector, required only for cipher methods that use it 
 
 ## License
 
