@@ -23,7 +23,9 @@ class Cryptomute
 
     const MIN_ROUNDS = 3;
 
-    const MIN_POOL_SIZE = '999';
+    const DEFAULT_MIN_VALUE = '0';
+
+    const DEFAULT_MAX_VALUE = '9999999999';
 
     /**
      * @var array
@@ -114,16 +116,56 @@ class Cryptomute
     /**
      * Cryptomute constructor.
      *
-     * @param string $minValue Minimum value. String representation of positive integer value or zero.
-     * @param string $maxValue Maximum value. String representation of positive integer value.
-     * @param string $cipher   Cipher used to encrypt.
-     * @param string $key      Initial key, from which all round keys are derrived.
-     * @param int    $rounds   Number of rounds.
+     * @param string $cipher  Cipher used to encrypt.
+     * @param string $baseKey Base key, from which all round keys are derrived.
+     * @param int    $rounds  Number of rounds.
      *
      * @throws InvalidArgumentException If provided invalid constructor parameters.
      * @throws LogicException           If side size is longer than cipher length.
      */
-    public function __construct($minValue, $maxValue, $cipher, $key, $rounds = 3, $password = null)
+    public function __construct($cipher, $baseKey, $rounds = 3)
+    {
+        if (!array_key_exists($cipher, self::$allowedCiphers)) {
+            throw new InvalidArgumentException(sprintf(
+                'Cipher must be one of "%s".',
+                implode(', ', array_keys(self::$allowedCiphers))
+            ));
+        }
+
+        $this->cipher = $cipher;
+        $this->cipherLength = self::$allowedCiphers[$cipher]['length'];
+        $this->setValueRange(self::DEFAULT_MIN_VALUE, self::DEFAULT_MAX_VALUE);
+
+        if (!is_int($rounds) || $rounds < self::MIN_ROUNDS) {
+            throw new InvalidArgumentException(sprintf(
+                'Number of rounds must be an integer greater or equal %d',
+                self::MIN_ROUNDS
+            ));
+        }
+
+        $this->rounds = $rounds;
+
+        if (strlen($baseKey) < self::KEY_MIN_LENGTH) {
+            throw new InvalidArgumentException(sprintf(
+                'Key must be at least %d characters long.',
+                self::KEY_MIN_LENGTH
+            ));
+        }
+
+        $this->key = $baseKey;
+    }
+
+    /**
+     * Set value range and pad sizes.
+     *
+     * @param string $minValue Minimum value. String representation of positive integer value or zero.
+     * @param string $maxValue Maximum value. String representation of positive integer value.
+     *
+     * @throws InvalidArgumentException If provided invalid parameters.
+     *
+     * @return Cryptomute
+     */
+    public function setValueRange($minValue, $maxValue)
     {
         if (preg_match('/^([1-9][0-9]*)|([0]{1})$/', $minValue) !== 1) {
             throw new InvalidArgumentException(
@@ -143,9 +185,9 @@ class Cryptomute
 
         $this->minValue = $minValue;
         $this->maxValue = $maxValue;
-        $this->binSize = 2;
 
         // find the minimum number of even bits to span whole set
+        $this->binSize = 2;
         $span = gmp_init('4', 10);
         $multiplier = gmp_init('4', 10);
         do {
@@ -158,16 +200,6 @@ class Cryptomute
 
         $this->sideSize = (int) $this->binSize / 2;
 
-        if (!array_key_exists($cipher, self::$allowedCiphers)) {
-            throw new InvalidArgumentException(sprintf(
-                'Cipher must be one of "%s".',
-                implode(', ', array_keys(self::$allowedCiphers))
-            ));
-        }
-
-        $this->cipher = $cipher;
-        $this->cipherLength = self::$allowedCiphers[$cipher]['length'];
-
         if ($this->sideSize > $this->cipherLength) {
             throw new LogicException(sprintf(
                 'Side size (%d bits) must be less or equal to cipher length (%d bits)',
@@ -176,24 +208,7 @@ class Cryptomute
             ));
         }
 
-
-        if (!is_int($rounds) || $rounds < self::MIN_ROUNDS) {
-            throw new InvalidArgumentException(sprintf(
-                'Number of rounds must be an integer greater or equal %d',
-                self::MIN_ROUNDS
-            ));
-        }
-
-        $this->rounds = $rounds;
-
-        if (strlen($key) < self::KEY_MIN_LENGTH) {
-            throw new InvalidArgumentException(sprintf(
-                'Key must be at least %d characters long.',
-                self::KEY_MIN_LENGTH
-            ));
-        }
-
-        $this->key = $key;
+        return $this;
     }
 
     /**
