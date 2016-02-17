@@ -31,7 +31,15 @@ class Cryptomute
      * @var array
      */
     public static $allowedCiphers = [
-        'aes-128-cbc' => ['iv' => true, 'length' => 128],
+        'des-cbc'          => ['iv' => true,  'length' => 64],
+        'aes-128-cbc'      => ['iv' => true,  'length' => 128],
+        'aes-128-ecb'      => ['iv' => false, 'length' => 128],
+        'aes-192-cbc'      => ['iv' => true,  'length' => 192],
+        'aes-192-ecb'      => ['iv' => false, 'length' => 192],
+        'camellia-128-cbc' => ['iv' => true,  'length' => 128],
+        'camellia-128-ecb' => ['iv' => false, 'length' => 128],
+        'camellia-192-cbc' => ['iv' => true,  'length' => 192],
+        'camellia-192-ecb' => ['iv' => false, 'length' => 192],
     ];
 
     /**
@@ -136,9 +144,9 @@ class Cryptomute
         $this->cipherLength = self::$allowedCiphers[$cipher]['length'];
         $this->setValueRange(self::DEFAULT_MIN_VALUE, self::DEFAULT_MAX_VALUE);
 
-        if (!is_int($rounds) || $rounds < self::MIN_ROUNDS) {
+        if (!is_int($rounds) || $rounds < self::MIN_ROUNDS || $rounds % 2 !== 1) {
             throw new InvalidArgumentException(sprintf(
-                'Number of rounds must be an integer greater or equal %d',
+                'Number of rounds must be an odd integer greater or equal %d',
                 self::MIN_ROUNDS
             ));
         }
