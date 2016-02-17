@@ -2,7 +2,7 @@
 
 A small PHP class implementing Format Preserving Encryption via Feistel Network.
 
-## Installation
+## 1. Installation
 
 You can install Cryptomute via [Composer](http://getcomposer.org) (packagist has [loostro/cryptomute](https://packagist.org/packages/loostro/cryptomute) package). In your `composer.json` file use:
 
@@ -16,7 +16,7 @@ You can install Cryptomute via [Composer](http://getcomposer.org) (packagist has
 
 And run: `php composer.phar install`. After that you can require the autoloader and use Cryptomute:
 
-## Usage
+## 2. Usage
 
 ``` php
 require_once 'vendor/autoload.php';
@@ -54,17 +54,60 @@ array(3) {
 }                        
 ```
 	
-## Constructor arguments
+## 3. Options
 
-* `cipher` the first version supports only `aes-128-cbc`, soon other openssl cipher methods will be added
-* `key` base key from which round keys are derrived
-* `rounds` number of rounds used, minimum - 3, recommended for stronger security - 7
+### 3.1 Cipher
+ 
+Cipher is the first constructor argument. Supported cipher methods are:
 
-## Public methods
+Cipher             | IV
+------------------ | ---
+`des-cbc`          | yes
+`aes-128-cbc`      | yes
+`aes-128-ecb`      | no
+`aes-192-cbc`      | yes
+`aes-192-ecb`      | no
+`camellia-128-cbc` | yes
+`camellia-128-ecb` | no
+`camellia-192-cbc` | yes
+`camellia-192-ecb` | no
 
-* `setValueRange($minValue, $maxValue)` sets minimum and maximum value
-* `encrypt($plainValue, $base, $pad, $password, $iv)` encrypts data
-* `decrypt($cryptValue, $base, $pad, $password, $iv)` decrypts data
+### 3.2 Key
+
+Key is the second constructor argument. Base key from which all round keys are derrived.
+
+### 3.3 Rounds
+
+Rounds is the third constructor argument. Must be an odd integer greater or equal to 3. More rounds is more secure,
+but also slower. Recommended value is at least 7.
+
+## 4. Public methods
+
+### 4.1 setValueRange(`$minValue`, `$maxValue`)
+
+Sets minimum and maximum values. If the result is out of range it will be re-encrypted (or re-decrypted) until ouput
+is in range.
+
+### 4.2 encrypt(`$plainValue`, `$base`, `$pad`, `$password`, `$iv`)
+ 
+Encrypts data. Takes following arguments:
+
+* `$plainValue` (string) input data to be encrypted
+* `$base` (int) input data base, accepted values is 2 (binary), 10 (decimal) or 16 (hexadecimal)
+* `$pad` (bool) pad left output to match `$maxValue`'s length?
+* `$password` (string) encryption password
+* `$iv` (string) initialization vector - only if cipher requires it
+
+
+### 4.2 decrypt(`$cryptValue`, `$base`, `$pad`, `$password`, `$iv`)
+ 
+Decrypts data. Takes following arguments:
+
+* `$cryptValue` (string) input data to be decrypted
+* `$base` (int) input data base, accepted values is 2 (binary), 10 (decimal) or 16 (hexadecimal)
+* `$pad` (bool) pad left output to match `$maxValue`'s length?
+* `$password` (string) encryption password
+* `$iv` (string) initialization vector - only if cipher requires it
 
 ## License
 
