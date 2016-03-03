@@ -56,7 +56,7 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
 
     public function testEncodedValuesAreInDomain()
     {
-        $message = '[%s / %d rounds] Base %d value of %s encoded to %s is still in domain %s - %s.';
+        $message = '[%s / %d rounds] Base %d value of %s encoded to %s (%s) is still in domain %s - %s.';
         $minVal = 100;
         $maxVal = 999;
 
@@ -71,11 +71,11 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
 
                         $input = gmp_strval(gmp_init("$i", 10), $base);
                         $encoded = $cryptomute->encrypt($input, $base, false, $password, $iv);
-                        $intVal = (int)gmp_strval(gmp_init($encoded, $base), 10);
+                        $intVal = (int) gmp_strval(gmp_init($encoded, $base), 10);
 
                         $this->assertTrue(
                             $minVal <= $intVal && $intVal <= $maxVal,
-                            sprintf($message, $cipher, $rounds, $base, $i, $encoded, $minVal, $maxVal)
+                            sprintf($message, $cipher, $rounds, $base, $i, $encoded, "$intVal", $minVal, $maxVal)
                         );
                     }
                 }
