@@ -187,7 +187,7 @@ class Cryptomute
             );
         }
 
-        if (gmp_cmp($maxValue, $minValue) !== 1) {
+        if (gmp_cmp($maxValue, $minValue) < 1) {
             throw new InvalidArgumentException('Max value must be greater than min value.');
         }
 
@@ -200,8 +200,8 @@ class Cryptomute
         $multiplier = gmp_init('4', 10);
         do {
             $this->binSize += 2;
-            $span = gmp_mul ($span, $multiplier);
-        } while (gmp_cmp($span, $this->maxValue) !== 1);
+            $span = gmp_mul($span, $multiplier);
+        } while (gmp_cmp($span, $this->maxValue) < 1);
 
         $this->decSize = strlen($this->maxValue);
         $this->hexSize = $this->binSize / 4;
@@ -255,7 +255,7 @@ class Cryptomute
         $output = $this->_convertFromBin($binary, $base, $pad);
         $compare = DataConverter::binToDec($binary);
 
-        return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
+        return (gmp_cmp($this->minValue, $compare) > 0 || gmp_cmp($compare, $this->maxValue) > 0)
             ? $this->encrypt($output, $base, $pad, $password, $iv)
             : $output;
     }
@@ -296,7 +296,7 @@ class Cryptomute
         $output = $this->_convertFromBin($binary, $base, $pad);
         $compare = DataConverter::binToDec($binary);
 
-        return (gmp_cmp($this->minValue, $compare) === 1 || gmp_cmp($compare, $this->maxValue) === 1)
+        return (gmp_cmp($this->minValue, $compare) > 0 || gmp_cmp($compare, $this->maxValue) > 0)
             ? $this->decrypt($output, $base, $pad, $password, $iv)
             : $output;
     }
