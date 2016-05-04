@@ -220,7 +220,7 @@ class Cryptomute
     }
 
     /**
-     * Encrypts input data.
+     * Encrypts input data. Acts as a public alias for _encryptInternal method.
      *
      * @param string      $input    String representation of input number.
      * @param int         $base     Input number base.
@@ -232,7 +232,24 @@ class Cryptomute
      */
     public function encrypt($input, $base = 10, $pad = false, $password = null, $iv = null)
     {
-        $this->_validateInput($input, $base);
+        return $this->_encryptInternal($input, $base, $pad, $password, $iv, true);
+    }
+
+    /**
+     * Encrypts input data.
+     *
+     * @param string      $input    String representation of input number.
+     * @param int         $base     Input number base.
+     * @param bool        $pad      Pad left with zeroes?
+     * @param string|null $password Encryption password.
+     * @param string|null $iv       Encryption initialization vector. Must be unique!
+     * @param bool        $checkVal Should check if input value is in range?
+     *
+     * @return string Outputs encrypted data in the same format as input data.
+     */
+    private function _encryptInternal($input, $base, $pad, $password, $iv, $checkVal = false)
+    {
+        $this->_validateInput($input, $base, $checkVal);
         $this->_validateIv($iv);
         $hashPassword = $this->_hashPassword($password);
         $roundKeys = $this->_roundKeys($hashPassword, $iv);
@@ -256,7 +273,7 @@ class Cryptomute
         $compare = DataConverter::binToDec($binary);
 
         return (gmp_cmp($this->minValue, $compare) > 0 || gmp_cmp($compare, $this->maxValue) > 0)
-            ? $this->encrypt($output, $base, $pad, $password, $iv)
+            ? $this->_encryptInternal($output, $base, $pad, $password, $iv, false)
             : $output;
     }
 
@@ -400,10 +417,11 @@ class Cryptomute
      *
      * @param string $input
      * @param string $base
+     * @param bool   $checkDomain Should check if input is in domain?
      *
      * @throws InvalidArgumentException If provided invalid type.
      */
-    private function _validateInput($input, $base)
+    private function _validateInput($input, $base, $checkDomain = false)
     {
         if (!array_key_exists($base, self::$allowedBases)) {
             throw new InvalidArgumentException(sprintf(
@@ -414,9 +432,23 @@ class Cryptomute
 
         if (preg_match(self::$allowedBases[$base], $input) !== 1) {
             throw new InvalidArgumentException(sprintf(
-                'Input data does not match pattern "%s".',
+                'Input data "%s" does not match pattern "%s".',
+                $input,
                 self::$allowedBases[$base]
             ));
+        }
+
+        if ($checkDomain) {
+            $compare = gmp_init($input, $base);
+
+            if (gmp_cmp($this->minValue, $compare) > 0 || gmp_cmp($compare, $this->maxValue) > 0) {
+                throw new InvalidArgumentException(sprintf(
+                    'Input value "%d" is out of domain range "%d - %d".',
+                    gmp_strval($compare, 10),
+                    $this->minValue,
+                    $this->maxValue
+                ));
+            }
         }
     }
 

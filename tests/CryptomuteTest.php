@@ -2,8 +2,8 @@
 
 namespace Cryptomute\Tests;
 
-use Cryptomute\Cipher;
 use Cryptomute\Cryptomute;
+use InvalidArgumentException;
 use PHPUnit_Framework_TestCase;
 
 class CryptomuteTest extends PHPUnit_Framework_TestCase
@@ -181,6 +181,30 @@ class CryptomuteTest extends PHPUnit_Framework_TestCase
                 }
             }
         }
+    }
+
+    /**
+     * @expectedException InvalidArgumentException
+     */
+    public function testInputLessThanMinValueThrowsException()
+    {
+        $cryptomute = $this->getCryptomute('aes-128-cbc', 3);
+        $cryptomute->setValueRange(5000, 10000);
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-128-cbc'));
+
+        $cryptomute->encrypt(4999, 10, true, 'foo', $iv);
+    }
+
+    /**
+     * @expectedException InvalidArgumentException
+     */
+    public function testInputMoreThanMaxValueThrowsException()
+    {
+        $cryptomute = $this->getCryptomute('aes-128-cbc', 3);
+        $cryptomute->setValueRange(5000, 10000);
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-128-cbc'));
+
+        $cryptomute->encrypt(10001, 10, true, 'foo', $iv);
     }
 
     /**
